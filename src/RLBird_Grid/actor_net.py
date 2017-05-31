@@ -5,6 +5,8 @@ import math
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 5
 TAU = 0.001
+MODEL_PATH = "./model/actor_model.ckpt"
+
 class ActorNet:
     """ Actor Network Model of DDPG Algorithm """
     
@@ -29,7 +31,8 @@ class ActorNet:
             self.parameters_gradients = tf.gradients(self.actor_model,self.actor_parameters,-self.q_gradient_input)#/BATCH_SIZE) 
             self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,self.actor_parameters))  
             #initialize all tensor variable parameters:
-            self.sess.run(tf.initialize_all_variables())    
+            self.sess.run(tf.initialize_all_variables())
+            self.saver = tf.train.Saver()
             
             #To make sure actor and target have same intial parmameters copy the parameters:
             # copy target parameters
@@ -40,7 +43,7 @@ class ActorNet:
 				self.t_B2_a.assign(self.B2_a),
 				self.t_W3_a.assign(self.W3_a),
 				self.t_B3_a.assign(self.B3_a)])
-        
+            # self.saver.restore(self.sess, MODEL_PATH)
 
 
     def create_actor_net(self, num_states=4, num_actions=1):
@@ -79,3 +82,6 @@ class ActorNet:
 				self.t_B2_a.assign(TAU*self.B2_a+(1-TAU)*self.t_B2_a),
 				self.t_W3_a.assign(TAU*self.W3_a+(1-TAU)*self.t_W3_a),
 				self.t_B3_a.assign(TAU*self.B3_a+(1-TAU)*self.t_B3_a)])
+
+    def save_actor(self, path=MODEL_PATH):
+        save_path = self.saver.save(self.sess, path)

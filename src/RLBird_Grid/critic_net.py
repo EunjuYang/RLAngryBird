@@ -5,6 +5,8 @@ import math
 TAU = 0.001
 LEARNING_RATE= 0.001
 BATCH_SIZE = 5
+MODEL_PATH = "./model/critic_model.ckpt"
+
 class CriticNet:
     """ Critic Q value model of the DDPG algorithm """
     def __init__(self,num_states,num_actions):
@@ -33,7 +35,8 @@ class CriticNet:
             self.act_grad_v = tf.gradients(self.critic_q_model, self.critic_action_in)
             self.action_gradients = [self.act_grad_v[0]/tf.to_float(tf.shape(self.act_grad_v[0])[0])] #this is just divided by batch size
             #from simple actor net:
-            self.check_fl = self.action_gradients             
+            self.check_fl = self.action_gradients
+            self.saver = tf.train.Saver()
                        
             #initialize all tensor variable parameters:
             self.sess.run(tf.initialize_all_variables())
@@ -49,7 +52,7 @@ class CriticNet:
 				self.t_W3_c.assign(self.W3_c),
 				self.t_B3_c.assign(self.B3_c)
 			])
-            
+        # self.saver.restore(self.sess, MODEL_PATH)
             
     def create_critic_net(self, num_states=4, num_actions=1):
         N_HIDDEN_1 = 400
@@ -99,3 +102,7 @@ class CriticNet:
 				self.t_W3_c.assign(TAU*self.W3_c+(1-TAU)*self.t_W3_c),
 				self.t_B3_c.assign(TAU*self.B3_c+(1-TAU)*self.t_B3_c)
 			])
+
+
+    def save_critic(self, path=MODEL_PATH):
+        save_path = self.saver.save(self.sess, path)

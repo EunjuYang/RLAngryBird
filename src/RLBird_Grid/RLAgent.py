@@ -347,7 +347,7 @@ class RLAgent:
         """
         #1.(1 kinds of Grid (in Grid if there exist, Nothing : 0, only Pigs : 1, only Obstacles : 2, Pigs and obstacles : 3)
         #Divide by 20X20 tiles . width(440~840), height(240~640). index = (width-440)/20 + ((height-240)/20) *20
-        observation = np.zeros((1,400) , dtype=np.float32)
+        observation = np.zeros((400) , dtype=np.float32)
 
         pigs = vision.findPigsMBR()
         for i in xrange(pigs.size()):
@@ -358,7 +358,7 @@ class RLAgent:
 
             #print "Pig Position : x ", center_x, ", y ", center_y
             if center_x-440 > 0 and center_y-240 > 0 :
-                observation[0,(int)((center_y-440)/20)*20+ (int)((center_x-240)/20)] = 1
+                observation[(int)((center_y-440)/20)*20+ (int)((center_x-240)/20)] = 1
 
         blocks = vision.findBlocksMBR()
         for i in xrange(blocks.size()):
@@ -369,10 +369,10 @@ class RLAgent:
 
             #print "Obstacle Position : x ", center_x, ", y ", center_y
             if center_x - 440 > 0 and center_y - 240 > 0:
-                if observation[0,(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] == 0: #no pig
-                    observation[0,(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 2
+                if observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] == 0: #no pig
+                    observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 2
                 else: # pig exist
-                    observation[0,(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 3
+                    observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 3
 
         return observation
 

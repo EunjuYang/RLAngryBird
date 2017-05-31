@@ -117,5 +117,8 @@ class DDPG:
         # Update target Critic and actor network
         self.critic_net.update_target_critic()
         self.actor_net.update_target_actor()
+        self.actor_net.save_actor("model/actor_model.ckpt")
+        self.critic_net.save_critic("model/critic_model.ckpt")
+        print "###### finish to train"
 
 
