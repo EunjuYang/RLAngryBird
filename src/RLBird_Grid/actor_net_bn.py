@@ -6,24 +6,24 @@
 """
 import tensorflow as tf
 import math
-import batch_norm
+from batch_norm import *
 import numpy as np
 
 LEARNING_RATE = 0.0001
 TAU = 0.001
-BATCH_SIZE = 64
 N_HIDDEN_1 = 400
 N_HIDDEN_2 = 300
-
+MODEL_PATH = "./model/actor_bn_model.ckpt"
 
 class ActorNet_bn:
     """ Actor Network Model with Batch Normalization of DDPG Algorithm """
 
-    def __init__(self, num_states, num_actions):
+    def __init__(self, num_states, num_actions, BATCH_SIZE):
         tf.reset_default_graph()
         self.g = tf.Graph()
         with self.g.as_default():
             self.sess = tf.InteractiveSession()
+            self.BATCH_SIZE = BATCH_SIZE
 
             # actor network model parameters:
             self.actor_state_in = tf.placeholder("float", [None, num_states])
@@ -83,6 +83,7 @@ class ActorNet_bn:
                 zip(self.parameters_gradients, self.actor_parameters))
             # initialize all tensor variable parameters:
             self.sess.run(tf.initialize_all_variables())
+            self.saver = tf.train.Saver()
 
             # To make sure actor and target have same intial parmameters copy the parameters:
             # copy target parameters
@@ -93,6 +94,8 @@ class ActorNet_bn:
                 self.t_B2_a.assign(self.B2_a),
                 self.t_W3_a.assign(self.W3_a),
                 self.t_B3_a.assign(self.B3_a)])
+            self.saver.restore(self.sess, MODEL_PATH)
+            print "#Actor model parameter Load Finish"
 
     def evaluate_actor(self, state_t):
         return self.sess.run(self.actor_model, feed_dict={self.actor_state_in: state_t, self.is_training: False})
@@ -120,3 +123,6 @@ class ActorNet_bn:
             self.t_H1_a_bn.updateTarget,
             self.t_H2_a_bn.updateTarget,
         ])
+
+    def save_actor(self, path=MODEL_PATH):
+        save_path = self.saver.save(self.sess, path)

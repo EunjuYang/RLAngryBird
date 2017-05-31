@@ -7,24 +7,24 @@
 
 import tensorflow as tf
 import math
-import batch_norm
+from batch_norm import *
 import numpy as np
 
 LEARNING_RATE = 0.001
 TAU = 0.001
-BATCH_SIZE = 64
 N_HIDDEN_1 = 400
 N_HIDDEN_2 = 300
-
+MODEL_PATH = "./model/critic_bn_model.ckpt"
 
 class CriticNet_bn:
     """ Critic Q value model with batch normalization of the DDPG algorithm """
 
-    def __init__(self, num_states, num_actions):
+    def __init__(self, num_states, num_actions, BATCH_SIZE):
         tf.reset_default_graph()
         self.g = tf.Graph()
         with self.g.as_default():
             self.sess = tf.InteractiveSession()
+            self.BATCH_SIZE = BATCH_SIZE
 
             # Critic Q Network:
             self.critic_state_in = tf.placeholder("float", [None, num_states])
@@ -88,7 +88,7 @@ class CriticNet_bn:
             # self.l2_regularizer_loss = tf.nn.l2_loss(self.W1_c)+tf.nn.l2_loss(self.W2_c)+ tf.nn.l2_loss(self.W2_action_c) + tf.nn.l2_loss(self.W3_c)+tf.nn.l2_loss(self.B1_c)+tf.nn.l2_loss(self.B2_c)+tf.nn.l2_loss(self.B3_c)
             self.l2_regularizer_loss = 0.0001 * tf.reduce_sum(tf.pow(self.W2_c, 2))
             self.cost = tf.pow(self.critic_q_model - self.q_value_in,
-                               2) / BATCH_SIZE + self.l2_regularizer_loss  # /tf.to_float(tf.shape(self.q_value_in)[0])
+                               2) / self.BATCH_SIZE + self.l2_regularizer_loss  # /tf.to_float(tf.shape(self.q_value_in)[0])
             self.optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(self.cost)
             self.act_grad_v = tf.gradients(self.critic_q_model, self.critic_action_in)
             self.action_gradients = [
@@ -98,6 +98,7 @@ class CriticNet_bn:
 
             # initialize all tensor variable parameters:
             self.sess.run(tf.initialize_all_variables())
+            self.saver = tf.train.Saver()
 
             # To initialize critic and target with the same values:
             # copy target parameters
@@ -110,6 +111,8 @@ class CriticNet_bn:
                 self.t_W3_c.assign(self.W3_c),
                 self.t_B3_c.assign(self.B3_c)
             ])
+            self.saver.restore(self.sess, MODEL_PATH)
+            print "#Critic model parameter Load Finish"
 
     def train_critic(self, state_t_batch, action_batch, y_i_batch):
         self.sess.run([self.optimizer, self.H1_c_bn.train_mean, self.H1_c_bn.train_var, self.H2_c_bn.train_mean,
@@ -141,3 +144,6 @@ class CriticNet_bn:
             self.t_H1_c_bn.updateTarget,
             self.t_H2_c_bn.updateTarget
         ])
+
+    def save_critic(self, path=MODEL_PATH):
+        save_path = self.saver.save(self.sess, path)

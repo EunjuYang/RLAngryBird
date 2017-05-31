@@ -3,18 +3,17 @@ import tensorflow as tf
 import math
 
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 5
 TAU = 0.001
 MODEL_PATH = "./model/actor_model.ckpt"
 
 class ActorNet:
     """ Actor Network Model of DDPG Algorithm """
     
-    def __init__(self,num_states,num_actions):
+    def __init__(self,num_states,num_actions, BATCH_SIZE):
         self.g=tf.Graph()
         with self.g.as_default():
             self.sess = tf.InteractiveSession()
-            
+            self.BATCH_SIZE = BATCH_SIZE
            
             #actor network model parameters:
             self.W1_a, self.B1_a, self.W2_a, self.B2_a, self.W3_a, self.B3_a,\

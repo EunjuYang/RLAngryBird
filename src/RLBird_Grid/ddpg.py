@@ -14,7 +14,6 @@ from collections import deque
 from tensorflow_grad_inverter import grad_inverter
 
 REPLAY_MEMORY_SIZE = 10000
-BATCH_SIZE = 5
 GAMMA = 0.99
 is_grad_inverter = True
 
@@ -23,20 +22,21 @@ is_grad_inverter = True
 class DDPG:
     """ Deep Deterministic Policy Gradient Algorithm"""
 
-    def __init__(self, num_states, num_actions, action_space_high, action_space_low, is_batch_norm):
-
+    def __init__(self, num_states, num_actions, action_space_high, action_space_low, is_batch_norm, BATCH_SIZE):
+        self.BATCH_SIZE = BATCH_SIZE
         self.num_states = num_states
         self.num_actions = num_actions
         self.action_space_high = action_space_high
         self.action_space_low = action_space_low
+        self.is_batch_norm = is_batch_norm
 
         if is_batch_norm:
-            self.critic_net = CriticNet_bn(self.num_states, self.num_actions)
-            self.actor_net = ActorNet_bn(self.num_states, self.num_actions)
+            self.critic_net = CriticNet_bn(self.num_states, self.num_actions, self.BATCH_SIZE)
+            self.actor_net = ActorNet_bn(self.num_states, self.num_actions, self.BATCH_SIZE)
 
         else:
-            self.critic_net = CriticNet(self.num_states, self.num_actions)
-            self.actor_net = ActorNet(self.num_states, self.num_actions)
+            self.critic_net = CriticNet(self.num_states, self.num_actions, self.BATCH_SIZE)
+            self.actor_net = ActorNet(self.num_states, self.num_actions, self.BATCH_SIZE)
 
         # Initialize Buffer Network:
         self.replay_memory = deque()
@@ -65,7 +65,7 @@ class DDPG:
             self.replay_memory.popleft()
 
     def minibatches(self):
-        batch = random.sample(self.replay_memory, BATCH_SIZE)
+        batch = random.sample(self.replay_memory, self.BATCH_SIZE)
         # state t
         self.state_t_batch = [item[0] for item in batch]
         self.state_t_batch = np.array(self.state_t_batch)
@@ -87,7 +87,7 @@ class DDPG:
         # Q'(s_i+1,a_i+1)
         q_t_1 = self.critic_net.evaluate_target_critic(self.state_t_1_batch, self.action_t_1_batch)
         self.y_i_batch = []
-        for i in range(0, BATCH_SIZE):
+        for i in range(0, self.BATCH_SIZE):
 
             if self.done_batch[i]:
                 self.y_i_batch.append(self.reward_batch[i])
@@ -117,8 +117,10 @@ class DDPG:
         # Update target Critic and actor network
         self.critic_net.update_target_critic()
         self.actor_net.update_target_actor()
-        self.actor_net.save_actor("model/actor_model.ckpt")
-        self.critic_net.save_critic("model/critic_model.ckpt")
+
+        #save Parameters
+        self.actor_net.save_actor()
+        self.critic_net.save_critic()
         print "###### finish to train"
 
 

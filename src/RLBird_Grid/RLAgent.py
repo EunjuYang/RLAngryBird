@@ -42,7 +42,8 @@ Vision = VisionPkg.Vision # Class
 # specify parameters here:
 TRAIN_STEP = 5
 episodes = 10000
-is_batch_norm = False  # batch normalization switch
+is_batch_norm = True  # batch normalization switch
+BATCH_SIZE = 5 #should be smaller than TRAIN_STEP
 
 class RLAgent:
     def __init__(self,ip = "127.0.0.1",id = 28888):
@@ -62,13 +63,13 @@ class RLAgent:
         self.height = 480
         # raw image size(states) = [width, height, 3 (channel)]
         self.num_states = 400
-        #action space : [distance(0~)pixel, angle(0~90), taptime(0~5000)ms]
+        #action space : [distance(0~300)pixel, angle(0~90), taptime(0~5000)ms]
         self.num_actions = 3
         self.action_space_high=[300, 90, 5000]
         self.action_space_low = [0, 0, 0]
         self.noise_mean = [100, 30, 1500]
         self.noise_sigma = [70, 20, 1000]
-        self.ddpg = DDPG(self.num_states, self.num_actions,self.action_space_high, self.action_space_low, is_batch_norm)
+        self.ddpg = DDPG(self.num_states, self.num_actions,self.action_space_high, self.action_space_low, is_batch_norm, BATCH_SIZE)
 
     def getNextLevel(self):
         """

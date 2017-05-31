@@ -4,17 +4,17 @@ import math
 
 TAU = 0.001
 LEARNING_RATE= 0.001
-BATCH_SIZE = 5
 MODEL_PATH = "./model/critic_model.ckpt"
 
 class CriticNet:
     """ Critic Q value model of the DDPG algorithm """
-    def __init__(self,num_states,num_actions):
+    def __init__(self,num_states,num_actions, BATCH_SIZE):
         
         self.g=tf.Graph()
         with self.g.as_default():
             self.sess = tf.InteractiveSession()
-            
+            self.BATCH_SIZE = BATCH_SIZE
+
             #critic_q_model parameters:
             self.W1_c, self.B1_c, self.W2_c, self.W2_action_c, self.B2_c, self.W3_c, self.B3_c,\
             self.critic_q_model, self.critic_state_in, self.critic_action_in = self.create_critic_net(num_states, num_actions)
@@ -26,7 +26,7 @@ class CriticNet:
             self.q_value_in=tf.placeholder("float",[None,1]) #supervisor
             #self.l2_regularizer_loss = tf.nn.l2_loss(self.W1_c)+tf.nn.l2_loss(self.W2_c)+ tf.nn.l2_loss(self.W2_action_c) + tf.nn.l2_loss(self.W3_c)+tf.nn.l2_loss(self.B1_c)+tf.nn.l2_loss(self.B2_c)+tf.nn.l2_loss(self.B3_c) 
             self.l2_regularizer_loss = 0.0001*tf.reduce_sum(tf.pow(self.W2_c,2))+ 0.0001*tf.reduce_sum(tf.pow(self.B2_c,2))             
-            self.cost=tf.pow(self.critic_q_model-self.q_value_in,2)/BATCH_SIZE + self.l2_regularizer_loss#/tf.to_float(tf.shape(self.q_value_in)[0])
+            self.cost=tf.pow(self.critic_q_model-self.q_value_in,2)/self.BATCH_SIZE + self.l2_regularizer_loss#/tf.to_float(tf.shape(self.q_value_in)[0])
             self.optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(self.cost)
             
             #action gradient to be used in actor network:
