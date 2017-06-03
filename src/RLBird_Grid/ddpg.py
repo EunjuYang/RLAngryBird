@@ -12,8 +12,9 @@ from actor_net_bn import ActorNet_bn
 from critic_net_bn import CriticNet_bn
 from collections import deque
 from tensorflow_grad_inverter import grad_inverter
+from tempfile import TemporaryFile
 
-REPLAY_MEMORY_SIZE = 10000
+REPLAY_MEMORY_SIZE = 100
 GAMMA = 0.99
 is_grad_inverter = True
 
@@ -50,6 +51,8 @@ class DDPG:
         action_bounds = [action_max, action_min]
         self.grad_inv = grad_inverter(action_bounds)
 
+        self.outfile = TemporaryFile(mode="a+b")
+
     def evaluate_actor(self, state_t):
         return self.actor_net.evaluate_actor(state_t)
 
@@ -61,6 +64,9 @@ class DDPG:
         self.done = done
         self.replay_memory.append((self.observation_1, self.observation_2, self.action, self.reward, self.done))
         self.time_step = self.time_step + 1
+        #np.savez(self.outfile,[self.observation_1, self.observation_2, self.action, self.reward, self.done])
+
+
         if (len(self.replay_memory) > REPLAY_MEMORY_SIZE):
             self.replay_memory.popleft()
 
@@ -107,7 +113,7 @@ class DDPG:
         if is_grad_inverter:
             self.del_Q_a = self.critic_net.compute_delQ_a(self.state_t_batch,
                                                           action_for_delQ)  # /BATCH_SIZE
-            self.del_Q_a = self.grad_inv.invert(self.del_Q_a, action_for_delQ)
+            self.del_Q_a = self.grad_inv.invert(self.del_Q_a, action_for_delQ)# if gradient > 0, gradient = gradient *maxdiff. else, gradient = gradient *mindiff
         else:
             self.del_Q_a = self.critic_net.compute_delQ_a(self.state_t_batch, action_for_delQ)[0]  # /BATCH_SIZE
 

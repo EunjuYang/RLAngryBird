@@ -9,7 +9,7 @@ import math
 from batch_norm import *
 import numpy as np
 
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.001
 TAU = 0.001
 N_HIDDEN_1 = 400
 N_HIDDEN_2 = 300
@@ -19,6 +19,11 @@ class ActorNet_bn:
     """ Actor Network Model with Batch Normalization of DDPG Algorithm """
 
     def __init__(self, num_states, num_actions, BATCH_SIZE):
+        f = open("train_loss_bn.txt", 'a')
+        data = "Actor Learning rate : %f\n"%LEARNING_RATE
+        f.write(data)
+        f.close()
+
         tf.reset_default_graph()
         self.g = tf.Graph()
         with self.g.as_default():

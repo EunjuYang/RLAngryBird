@@ -12,7 +12,7 @@ import random
 import tensorflow as tf
 from ddpg import DDPG
 from ou_noise import OUNoise
-
+import time
 
 # JPype Setting
 jarpath = os.path.join(os.path.abspath('../../'))
@@ -40,10 +40,10 @@ GameState = VisionPkg.GameStateExtractor # Class
 Vision = VisionPkg.Vision # Class
 
 # specify parameters here:
-TRAIN_STEP = 5
-episodes = 10000
+TRAIN_STEP = 40
+episodes = 1000
 is_batch_norm = True  # batch normalization switch
-BATCH_SIZE = 5 #should be smaller than TRAIN_STEP
+BATCH_SIZE = 40 #should be smaller than TRAIN_STEP
 
 class RLAgent:
     def __init__(self,ip = "127.0.0.1",id = 28888):
@@ -51,9 +51,16 @@ class RLAgent:
         constructor for RLAgent class
         :param ip: default = 127.0.0.1
         """
+        if is_batch_norm:
+            f = open("train_loss_bn.txt", 'a')
+        else:
+            f = open("train_loss.txt", 'a')
+        data = "Batch size : %d "% BATCH_SIZE
+        f.write(data)
+        f.close()
 
         self.ar = ClientActionRobotJava(ip)
-        self.tp = TrajectoryPlanner() # generate instance for Trajectory Planner
+        self.tp = TrajectoryPlanner() # generate instance forne Trajectory Planner
         self.firstShot = True
         self.solved = []
         self.currentLevel = -1
@@ -62,14 +69,19 @@ class RLAgent:
         self.width = 840
         self.height = 480
         # raw image size(states) = [width, height, 3 (channel)]
-        self.num_states = 400
-        #action space : [distance(0~300)pixel, angle(0~90), taptime(0~5000)ms]
+        self.num_states = 402
+        #action space : [distance(0~45)pixel, angle(0~90), taptime(0~5000)ms]
         self.num_actions = 3
-        self.action_space_high=[300, 90, 5000]
-        self.action_space_low = [0, 0, 0]
-        self.noise_mean = [100, 30, 1500]
-        self.noise_sigma = [70, 20, 1000]
+        self.action_space_high=[45, 45, 2000]
+        self.action_space_low = [40, 10, 500]
+        #self.noise_mean = [100, 30, 1500]
+        #self.noise_sigma = [70, 20, 1000]
+        self.noise_mean = [0, 0, 0]
+        self.noise_sigma = [2, 15, 0]
         self.ddpg = DDPG(self.num_states, self.num_actions,self.action_space_high, self.action_space_low, is_batch_norm, BATCH_SIZE)
+        self.final_observation = 0
+        self.Final_observation_error = False
+
 
     def getNextLevel(self):
         """
@@ -137,8 +149,9 @@ class RLAgent:
         screenshot = self.ar.doScreenShot()
         vision = Vision(screenshot)
         sling = vision.findSlingshotMBR()
+        state = self.ar.checkState()
 
-        while sling == None and self.ar.checkState() == GameState.PLAYING:
+        while sling == None and state == state.PLAYING:
             print "no slingshot detected Please remove pop up or zoom out"
             self.ar.fullyZoomOut()
             screenshot = self.ar.doScreenShot()
@@ -166,23 +179,66 @@ class RLAgent:
                 print "## Release Angle", (releaseAngle)/100
 
                 self.ar.fullyZoomOut()
-                screenshot = self.ar.doScreenShot()
-                vision = Vision(screenshot)
-                _sling = vision.findSlingshotMBR()
-
+                prev_screenshot = self.ar.doScreenShot()
+                prev_vision = Vision(prev_screenshot)
+                _sling = prev_vision.findSlingshotMBR()
+                Prev_num_birds = (prev_vision.findBirdsMBR()).size()
                 if _sling != None:
-
                     scale_diff = (sling.width - _sling.width) ** 2 + (sling.height - _sling.height) ** 2
-
                     if scale_diff < 25:
-                        self.ar.shoot(int(refPoint.x), int(refPoint.y), int(releaseDistance), int(releaseAngle), 0, int(tapTime), True)
-                        state = self.ar.checkState()
+                        ###temporary
+                        #self.ar.shoot(int(refPoint.x), int(refPoint.y), int(releaseDistance), int(releaseAngle), 0, int(tapTime), True)
+
+                        shoot_time = time.time()
+                        self.ar.fastshoot(int(refPoint.x), int(refPoint.y), -int(releaseDistance*cos(radians(releaseAngle/100))),int(releaseDistance*sin(radians(releaseAngle/100))), 0, int(tapTime), False)
+
+                        self.ar.fullyZoomOut()
+                        screenshot = self.ar.doScreenShot()
+                        vision = Vision(screenshot)
+                        Curr_num_birds = (vision.findBirdsMBR()).size()
+                        Curr_num_pigs = (vision.findPigsMBR()).size()
+
+                        final_observation_flag = False
+                        while Curr_num_birds != Prev_num_birds-1:
+                            state = self.ar.checkState()
+                            if state == state.WON or state == state.LOST:
+                                print "break!"
+                                break
+                            self.ar.fullyZoomOut()
+                            screenshot = self.ar.doScreenShot()
+                            vision = Vision(screenshot)
+                            Curr_num_birds = (vision.findBirdsMBR()).size()
+                            Curr_num_pigs = (vision.findPigsMBR()).size()
+                            #time out
+                            if time.time()-shoot_time > 20:
+                                break
+                            #Update final_observation only if there is no pig, and bird number is decreased.
+                            if Curr_num_pigs == 0 or Curr_num_birds==0:
+                                if Curr_num_birds == Prev_num_birds-1:
+                                    print "Real Final observation made"
+                                    self.final_observation = self.FeatureExtractor(vision)
+                                    self.final_observation[400] = Prev_num_birds-1
+                                    final_observation_flag = True
+                                    self.Final_observation_error = False
+                                if Curr_num_birds == Prev_num_birds and final_observation_flag == False:
+                                    print "Temp Final observation made"
+                                    self.final_observation = self.FeatureExtractor(vision)
+                                    self.final_observation[400] = Prev_num_birds-1
+                                    final_observation_flag = True
+                                    self.Final_observation_error = False
+
+                        if Curr_num_pigs == 0 or Curr_num_birds == 0:
+                            if final_observation_flag == False:
+                                print "Final observation Capture error. Don't save this experience"
+                                self.Final_observation_error = True
+                            while state != state.WON and state != state.LOST:
+                                state = self.ar.checkState()
+                                if time.time() - shoot_time > 20:
+                                    break
+                            time.sleep(2.5)#wait for score is ready
+
 
                         if state == state.PLAYING:
-                            #screenshot = self.ar.doScreenShot()
-                            #vision = Vision(screenshot)
-                            #traj = vision.findTrajPoints()
-                            #self.tp.adjustTrajectory(traj, sling, releasePoint)
                             self.firstShot = False
                     else:
                         print "Sclae is changed, can not execute the shot, will re-segment the image"
@@ -215,26 +271,32 @@ class RLAgent:
         # saving reward:
         reward_st = np.array([0])
 
+        Stage_maximum_actions = 1
+
         #Learning for Same level
-        for i in xrange(episodes): #1 episode is for 1stage
+        for current_episode in xrange(episodes): #1 episode is for 1stage
 
             self.ar.loadLevel(self.currentLevel)
-            print "==== Starting episode no:", i, "====", "\n"
+            print "==== Starting episode no:", current_episode, "====", "\n"
             #get the input(screenshot)
             screenshot = self.ar.doScreenShot()
             vision = Vision(screenshot)
             sling = vision.findSlingshotMBR()
-
-            while sling == None and self.ar.checkState() == GameState.PLAYING:
+            state = self.ar.checkState()
+            while sling == None and state == state.PLAYING:
                 print "no slingshot detected Please remove pop up or zoom out"
                 self.ar.fullyZoomOut()
                 screenshot = self.ar.doScreenShot()
-            vision = Vision(screenshot)
+                vision = Vision(screenshot)
+                sling = vision.findSlingshotMBR()
+
             observation = self.FeatureExtractor(vision)
 
             prevscore = 0
             reward_per_episode = 0
             steps = 0
+            self.final_observation = 0
+            self.Final_observation_error = True
 
             # One episode
             while True:
@@ -246,13 +308,18 @@ class RLAgent:
                 noise = exploration_noise.noise()
                 action = action + noise  # Select action according to current policy and exploration noise
                 print action
-                action[0] = action[0] if action[0] > self.action_space_low[0] else -action[0]
+                action[0] = action[0] if action[0] > self.action_space_low[0] else 2*self.action_space_low[0]-action[0]
                 action[0] = action[0] if action[0] < self.action_space_high[0] else self.action_space_high[0]
-                action[1] = action[1] if action[1] > self.action_space_low[1] else -action[1]
+                action[1] = action[1] if action[1] > self.action_space_low[1] else 2*self.action_space_low[1]-action[1]
                 action[1] = action[1] if action[1] < self.action_space_high[1] else self.action_space_high[1]
-                action[2] = action[2] if action[2] > self.action_space_low[2] else -action[2]
+                action[2] = action[2] if action[2] > self.action_space_low[2] else 2*self.action_space_low[2]-action[2]
                 action[2] = action[2] if action[2] < self.action_space_high[2] else self.action_space_high[2]
                 print "Action at step", steps, " :", action, "\n"
+
+                screenshot = self.ar.doScreenShot()
+                vision = Vision(screenshot)
+                prev_num_birds = (vision.findBirdsMBR()).size()
+
                 state = self.shoot(action)
 
                 if state == state.WON or state == state.LOST:
@@ -260,24 +327,32 @@ class RLAgent:
                     print "## End Game"
                     ####
                     screenshot = self.ar.doScreenShot()
-                    vision = Vision(screenshot)
-                    observation = self.FeatureExtractor(vision)
 
                     if state == state.WON:
                         score = self.ar.getScoreEndGame(screenshot)
                         reward = (score - prevscore) / 1000.0
                     else:
-                        reward = 0.00
+                        reward = -100.00
 
+                    #Move to next level in every 5 steps
+                    if current_episode%5 == 4:
+                        if self.currentLevel == 5:
+                            self.currentLevel = 1
+                        else:
+                            self.currentLevel = self.getNextLevel()
+                    else:
+                        self.currentLevel = self.currentLevel # self.currentLevel = self.getNextLevel()
 
-                    self.currentLevel = self.currentLevel # self.currentLevel = self.getNextLevel()
                     self.firstShot = True
                     done = True
                     # add s_t,s_t+1,action,reward to experience memory
                     print "######### SCORE" , score
                     print "######### REWARD" , reward
-                    print "### add experience", action, reward, done
-                    self.ddpg.add_experience(x, observation, action, reward, done)
+                    if self.Final_observation_error == False:
+                        print "### add experience", action, reward, done
+                        self.ddpg.add_experience(x, self.final_observation, action, reward, done)
+                    else :
+                        print "### Not add experience by Capture ERROR"
                     # train critic and actor network
                     if counter > TRAIN_STEP:
                         self.ddpg.train()
@@ -286,15 +361,15 @@ class RLAgent:
                     steps += 1
 
                     # check if episode ends:
-                    print 'EPISODE: ', i, ' Steps: ', steps, ' Total Reward: ', reward_per_episode
-                    print "Printing reward to file"
+                    print 'EPISODE: ', current_episode, ' Steps: ', steps, ' Total Reward: ', reward_per_episode
+                    #print "Printing reward to file"
                     exploration_noise.reset()  # reinitializing random noise for action exploration
-                    reward_st = np.append(reward_st, reward_per_episode)
-                    np.savetxt('episode_reward.txt', reward_st, newline="\n")
+                    #reward_st = np.append(reward_st, reward_per_episode)
+                    #np.savetxt('episode_reward.txt', reward_st, newline="\n")
                     print '\n\n'
 
                     #RL_Bird:reward should be updated to all actions in the stage.
-                    break;
+                    break
 
                 elif state == state.PLAYING:
                     # PLAING in a episode
@@ -302,18 +377,29 @@ class RLAgent:
                     screenshot = self.ar.doScreenShot()
                     vision = Vision(screenshot)
                     sling = vision.findSlingshotMBR()
-
-                    while sling == None and self.ar.checkState() == GameState.PLAYING:
+                    state = self.ar.checkState()
+                    while sling == None and state == state.PLAYING:
                         print "no slingshot detected Please remove pop up or zoom out"
                         self.ar.fullyZoomOut()
                         screenshot = self.ar.doScreenShot()
+                        vision = Vision(screenshot)
+                        sling = vision.findSlingshotMBR()
 
                     # get s_t+1
                     vision = Vision(screenshot)
+                    print "#Next state is captured"
                     observation = self.FeatureExtractor(vision)
+                    observation[400] = prev_num_birds-1
                     # add s_t,s_t+1,action,reward to experience memory
                     score = self.ar.getInGameScore(screenshot)
                     reward = (score - prevscore) / 1000.0
+                    if reward == 0.0:
+                        reward = -100
+                    #?????
+                    #if (Stage_maximum_actions - 1 == steps):
+                    #    reward = -10
+
+
                     print "#### instant reward", reward
                     prevscore = score
                     done = False
@@ -325,6 +411,11 @@ class RLAgent:
                     reward_per_episode += reward
                     counter += 1
                     steps += 1
+                    exploration_noise.reset()  # reinitializing random noise for action exploration
+                    #?????
+                    #if (Stage_maximum_actions == steps):
+                    #    print "### Count is over. restart game"
+                    #    break;
 
                 elif state == state.LEVEL_SELECTION:
                     print "unexpected level selection page, go to the last current level: %d" % self.currentLevel
@@ -346,9 +437,10 @@ class RLAgent:
         get Observation (State for DDPG) by given vision
         :return: observation
         """
-        #1.(1 kinds of Grid (in Grid if there exist, Nothing : 0, only Pigs : 1, only Obstacles : 2, Pigs and obstacles : 3)
+        #1.(1)1 kinds of Grid(400 dimension (in Grid if there exist, Nothing : 0, only Pigs : 10, only Obstacles : -10, Pigs and obstacles : 5)
+        # 2) number of remaining birds (1 dimension)
         #Divide by 20X20 tiles . width(440~840), height(240~640). index = (width-440)/20 + ((height-240)/20) *20
-        observation = np.zeros((400) , dtype=np.float32)
+        observation = np.zeros((self.num_states) , dtype=np.float32)
 
         pigs = vision.findPigsMBR()
         for i in xrange(pigs.size()):
@@ -359,8 +451,8 @@ class RLAgent:
 
             #print "Pig Position : x ", center_x, ", y ", center_y
             if center_x-440 > 0 and center_y-240 > 0 :
-                observation[(int)((center_y-440)/20)*20+ (int)((center_x-240)/20)] = 1
-
+                observation[(int)((center_y-440)/20)*20+ (int)((center_x-240)/20)] = 10
+        #print "number of remaining pigs : ", pigs.size()
         blocks = vision.findBlocksMBR()
         for i in xrange(blocks.size()):
             temp_object = blocks.get(i)
@@ -371,9 +463,17 @@ class RLAgent:
             #print "Obstacle Position : x ", center_x, ", y ", center_y
             if center_x - 440 > 0 and center_y - 240 > 0:
                 if observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] == 0: #no pig
-                    observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 2
+                    observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = -10
                 else: # pig exist
-                    observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 3
+                    observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 5
+
+        number_birds = (vision.findBirdsMBR()).size()
+        #print "number of remaining birds : ", number_birds
+        observation[400]=number_birds
+
+        current_level = self.getNextLevel()-1
+        #print "Current level : ", current_level
+        observation[401]=current_level
 
         return observation
 

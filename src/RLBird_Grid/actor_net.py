@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import math
 
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.1
 TAU = 0.001
 MODEL_PATH = "./model/actor_model.ckpt"
 
@@ -42,7 +42,8 @@ class ActorNet:
 				self.t_B2_a.assign(self.B2_a),
 				self.t_W3_a.assign(self.W3_a),
 				self.t_B3_a.assign(self.B3_a)])
-            # self.saver.restore(self.sess, MODEL_PATH)
+            self.saver.restore(self.sess, MODEL_PATH)
+            print "#Actor model parameter Load Finish"
 
 
     def create_actor_net(self, num_states=4, num_actions=1):

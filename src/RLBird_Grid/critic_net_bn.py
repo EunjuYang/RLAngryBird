@@ -20,6 +20,10 @@ class CriticNet_bn:
     """ Critic Q value model with batch normalization of the DDPG algorithm """
 
     def __init__(self, num_states, num_actions, BATCH_SIZE):
+        f = open("train_loss_bn.txt", 'a')
+        data = "Critic Learning rate : %f "%LEARNING_RATE
+        f.write(data)
+        f.close()
         tf.reset_default_graph()
         self.g = tf.Graph()
         with self.g.as_default():
@@ -101,7 +105,7 @@ class CriticNet_bn:
             self.saver = tf.train.Saver()
 
             # To initialize critic and target with the same values:
-            # copy target parameters
+            # copy target parametersf
             self.sess.run([
                 self.t_W1_c.assign(self.W1_c),
                 self.t_B1_c.assign(self.B1_c),
@@ -115,12 +119,21 @@ class CriticNet_bn:
             print "#Critic model parameter Load Finish"
 
     def train_critic(self, state_t_batch, action_batch, y_i_batch):
-        self.sess.run([self.optimizer, self.H1_c_bn.train_mean, self.H1_c_bn.train_var, self.H2_c_bn.train_mean,
-                       self.H2_c_bn.train_var, self.t_H1_c_bn.train_mean, self.t_H1_c_bn.train_var,
-                       self.t_H2_c_bn.train_mean, self.t_H2_c_bn.train_var],
-                      feed_dict={self.critic_state_in: state_t_batch, self.t_critic_state_in: state_t_batch,
-                                 self.critic_action_in: action_batch, self.t_critic_action_in: action_batch,
+        #print "Critic net Cost :" + str(train_loss)
+
+        self.sess.run([self.optimizer, self.H1_c_bn.train_mean, self.H1_c_bn.train_var, self.H2_c_bn.train_mean,\
+                       self.H2_c_bn.train_var, self.t_H1_c_bn.train_mean, self.t_H1_c_bn.train_var,\
+                       self.t_H2_c_bn.train_mean, self.t_H2_c_bn.train_var],\
+                      feed_dict={self.critic_state_in: state_t_batch, self.t_critic_state_in: state_t_batch,\
+                                 self.critic_action_in: action_batch, self.t_critic_action_in: action_batch,\
                                  self.q_value_in: y_i_batch, self.is_training: True})
+        train_loss = self.sess.run(self.cost, feed_dict={self.critic_state_in: state_t_batch, self.t_critic_state_in: state_t_batch,\
+                                self.critic_action_in: action_batch, self.t_critic_action_in: action_batch,\
+                                               self.q_value_in: y_i_batch, self.is_training: True})
+        f = open("train_loss_bn.txt", 'a')
+        f.write(str(train_loss))
+        f.close()
+        print "Critic net Cost :" + str(train_loss)
 
     def evaluate_target_critic(self, state_t_1, action_t_1):
         return self.sess.run(self.t_critic_q_model,

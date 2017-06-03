@@ -3,7 +3,7 @@ import tensorflow as tf
 import math
 
 TAU = 0.001
-LEARNING_RATE= 0.001
+LEARNING_RATE= 0.01
 MODEL_PATH = "./model/critic_model.ckpt"
 
 class CriticNet:
@@ -52,7 +52,8 @@ class CriticNet:
 				self.t_W3_c.assign(self.W3_c),
 				self.t_B3_c.assign(self.B3_c)
 			])
-        # self.saver.restore(self.sess, MODEL_PATH)
+            self.saver.restore(self.sess, MODEL_PATH)
+            print "#Critic model parameter Load Finish"
             
     def create_critic_net(self, num_states=4, num_actions=1):
         N_HIDDEN_1 = 400
@@ -77,6 +78,10 @@ class CriticNet:
         return W1_c, B1_c, W2_c, W2_action_c, B2_c, W3_c, B3_c, critic_q_model, critic_state_in, critic_action_in
     
     def train_critic(self, state_t_batch, action_batch, y_i_batch ):
+
+        train_loss = self.cost.eval(feed_dict={self.critic_state_in: state_t_batch, self.critic_action_in:action_batch, self.q_value_in: y_i_batch})
+        print "Critic net Cost :" + str(train_loss)
+
         self.sess.run(self.optimizer, feed_dict={self.critic_state_in: state_t_batch, self.critic_action_in:action_batch, self.q_value_in: y_i_batch})
              
     
