@@ -12,10 +12,13 @@ Reference (https://aibirds.org/basic-game-playing-software/getting-started.html)
 - Chrome is required
 - JPype is required
 
-$ sudo apt-get install google-chrome-stable
+```javascript
+sudo apt-get install google-chrome-stable
+```
 
-$ sudo apt-get install python-jpype
-
+```javascript
+sudo apt-get install python-jpype
+```
 Please install Chrome extension.
 The extension is located in the folder "plugin".
 
@@ -36,13 +39,19 @@ Replace it with original myAngryBird.jar
  
  - open one terminal and type the command below
  
-$ java -jar ABServer.jar
+ ```sh
+java -jar ABServer.jar
+```
+
 
  - open another terminal and type the command below
 
-$ cd src/{Version You want to Execute}
+ ```sh
+cd src/{Version You want to Execute}
 
-$ python RLAgent.py
+python RLAgent.py
+```
+
 
 ## Three versions
 
