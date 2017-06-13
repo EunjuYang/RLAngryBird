@@ -1,0 +1,176 @@
+Test at episode: 14
+1 Win 28350
+2 Win 26380
+3 Win 41910
+4 Win 28320
+5 Win 65610
+6 Win 35840
+7 Win 45940
+8 Win 54660
+9 Win 40800
+10 Win 54420
+11 Win 49050
+12 Win 57940
+Total Score : 529220 (model_6.9_3_stage12)
+
+6/10 00:00~ 6/10 13:00 (TRAIN_LEVEL = ALL)
+Test at episode: 3
+1 Win 29650
+2 Win 52560
+3 Win 41910
+4 Win 28590
+5 Win 65610
+6 Win 16260
+7 Win 45740
+8 Win 54660
+9 Win 41980
+10 Win 58920
+11 Win 44980
+12 Win 44590
+13 Win 27480
+Total Score : 552930 (model_6.9_4_stage13)
+
+Critic Learning rate : 0.001000 Actor Learning rate : 0.001000
+Test at episode: 15 
+1 Win 28760
+2 Win 44330
+3 Win 42130
+4 Win 28600
+5 Win 64950
+Total Score : 208770
+Test at episode: 37 
+1 Win 28760
+2 Win 44330
+3 Win 42130
+4 Win 28600
+5 Win 64950
+Total Score : 208770
+Test at episode: 59 
+1 Win 28760
+2 Win 53960
+3 Win 42130
+4 Win 28220
+5 Win 67930
+6 Win 18270
+7 Win 37230
+8 Win 54660
+9 Win 43700
+10 Win 43330
+11 Win 48910
+12 Win 46570
+13 Win 31470
+Total Score : 545140 (model_6.12_1_stage13_need_test)
+
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+1 Win 30020
+2 Win 53900
+3 Win 41190
+4 Win 28220
+5 Win 63920
+6 Win 25270
+7 Win 45940
+8 Win 42430
+9 Win 33950 - OR FAIL
+10 Win 67060
+11 Win 54230
+12 Win 50890
+13 Win 32910 - OR FAIL.
+14 Win 65640
+15 Win 27110
+16 Win 62230
+17 Win 47600
+Total Score : 772510
+Exceed Target Score. Stop Game
+Total Score : 772510(model_6.12_2_stage17(772510),
+)Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+
+Test at episode: 15
+1 Win 30020
+2 Win 52160
+3 Win 41140
+4 Win 27970
+5 Win 63920
+6 Win 33480
+7 Win 33390
+8 Win 36720
+9 Win 49210
+Total Score : 368010
+Test at episode: 26
+Total Score : 0
+Test at episode: 27
+10 Win 65820
+11 Win 59670
+12 Win 54560
+13 Win 22510
+14 Win 65640
+Total Score : 268200
+Test at episode: 36
+10 Win 50070
+11 Win 47110
+Total Score : 97180
+Test at episode: 40
+10 Win 66000
+11 Win 59670
+12 Win 53900
+13 Win 26670
+14 Win 65640
+15 Win 41500
+16 Win 61220
+17 Win 48740
+
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+1 Win 30020
+2 Win 52160
+3 Win 41140
+4 Win 27970
+5 Win 63920
+6 Win 17830
+7 Win 33390
+8 Win 47690
+9 Win 49210
+10 Win 65950 -65670 -50070
+11 Win 44550 - 47610 - 44550
+12 Win 54690 - 53980
+13 Win 26670 - fail.
+14 Win 65640
+15 Win 34870
+16 Win 65740
+17 Win 52520
+Stop By User. Total Score : 773960(model_6.12_3_stage17)
+
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+1 Win 30020
+2 Win 53900
+3 Win 41190
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+1 Win 30020
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+1 Win 30020
+2 Win 53900
+3 Win 41190
+4 Win 28220
+5 Win 63920
+6 Win 25270
+7 Win 45940
+8 Win 42430
+9 Win 34600
+10 Win 67080
+11 Win 20700
+12 Win 43260
+Total Score : 496530
+Test at episode: 22 
+1 Win 30020
+2 Win 11264
+3 Win 41190
+4 Win 28220
+5 Win 67930
+6 Win 25270
+7 Win 45940
+8 Win 47330
+Total Score : 297164
+Test at episode: 32 
+1 Win 30020
+Critic Learning rate : 0.000100 Actor Learning rate : 0.000100
+1 Win 30020
+Total Score : 30020

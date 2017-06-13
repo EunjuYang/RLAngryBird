@@ -111,3 +111,7 @@ class CriticNet:
 
     def save_critic(self, path=MODEL_PATH):
         save_path = self.saver.save(self.sess, path)
+
+    def restore_critic(self):
+        print "###### restore Critic Parameters"
+        self.saver.restore(self.sess, MODEL_PATH)

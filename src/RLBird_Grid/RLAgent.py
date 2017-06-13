@@ -1,7 +1,7 @@
 """
     define RLAgent class
     Title : RLAgent.py
-    Writer      : Eunjoo Yang
+    Writer      : Eunjoo Yang, Wangyu Han
     Last Date   : 2017/05/15
 """
 from jpype import *
@@ -13,6 +13,10 @@ import tensorflow as tf
 from ddpg import DDPG
 from ou_noise import OUNoise
 import time
+from collections import deque
+
+
+import sys, threading
 
 # JPype Setting
 jarpath = os.path.join(os.path.abspath('../../'))
@@ -40,10 +44,19 @@ GameState = VisionPkg.GameStateExtractor # Class
 Vision = VisionPkg.Vision # Class
 
 # specify parameters here:
-TRAIN_STEP = 40
-episodes = 1000
+episodes = 150
 is_batch_norm = True  # batch normalization switch
-BATCH_SIZE = 40 #should be smaller than TRAIN_STEP
+TRAIN_STEP = 30
+BATCH_SIZE = 20 #should be smaller than TRAIN_STEP
+
+ALL_WIN_LEVEL = 20 #Game is over when all win from level 1 to level of this value
+TARGET_SCORE = 900000
+TEST_FLAG = True
+START_WITH_TEST = False
+
+SMALL_NOISE_LEVEL = [1,2,3,4,6,7,8,11,12,13,14,16,17,19,20]
+#TRAIN_LEVEL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]
+TRAIN_LEVEL = [18,9,10,11,12,13,14,15,16,17,18,19,20,21]
 
 class RLAgent:
     def __init__(self,ip = "127.0.0.1",id = 28888):
@@ -72,15 +85,30 @@ class RLAgent:
         self.num_states = 402
         #action space : [distance(0~45)pixel, angle(0~90), taptime(0~5000)ms]
         self.num_actions = 3
-        self.action_space_high=[45, 45, 2000]
-        self.action_space_low = [40, 10, 500]
-        #self.noise_mean = [100, 30, 1500]
-        #self.noise_sigma = [70, 20, 1000]
+        self.action_space_high=[45, 45, 1500]
+        self.action_space_low = [40, 10, 1000]
         self.noise_mean = [0, 0, 0]
-        self.noise_sigma = [2, 15, 0]
+        self.noise_sigma = [2, 10, 200]
+        self.noise_sigma_small = [1, 1, 0]
         self.ddpg = DDPG(self.num_states, self.num_actions,self.action_space_high, self.action_space_low, is_batch_norm, BATCH_SIZE)
         self.final_observation = 0
         self.Final_observation_error = False
+        self.temp_replay_memory = deque()
+
+        self.total_numbirds = [3,5,4,4,4, 4,4,4,4,5, 4,4,4,4,4, 5,3,5,4,5, 8]
+        self.steps = 0
+        self.test_flag = START_WITH_TEST
+        self.all_win_flag = True
+        self.test_totalscore = 0.0
+
+        self.TEST_START_FLAG = False
+        t1 = threading.Thread(target=self.CLI)
+        t1.start()
+        self.TEST_START_LEVEL = 1
+        self.TRAIN_START_FLAG = False
+        self.TRAIN_START_LEVEL = TRAIN_LEVEL[0]
+        self.TEST_AFTER_EVERY_EPISODE = False
+        self.TEMP_TEST_AFTER_EVERY_EPISODE = False
 
 
     def getNextLevel(self):
@@ -163,35 +191,63 @@ class RLAgent:
 
         # if there is a sling, then play, otherwise skip
         if sling != None:
+            refPoint = self.tp.getReferencePoint(sling)
 
-            # If there are pigs we pick up a pig randomly and shoot it
-            if len(pigs) != 0:
+            #get shoot information from ddpg , tapTime is millsecond
+            releaseDistance= action[0] # r
+            releaseAngle = action[1] * 100 # theta
+            tapTime = action[2] # tap time
 
-                refPoint = self.tp.getReferencePoint(sling)
+            #Point releasePoint
+            print "## Release Distance", (releaseDistance)
+            print "## Release Angle", (releaseAngle)/100
 
-                #get shoot information from ddpg , tapTime is millsecond
-                releaseDistance= action[0] # r
-                releaseAngle = action[1] * 100 # theta
-                tapTime = action[2] # tap time
 
-                #Point releasePoint
-                print "## Release Distance", (releaseDistance)
-                print "## Release Angle", (releaseAngle)/100
+            self.ar.fullyZoomOut()
+            prev_screenshot = self.ar.doScreenShot()
+            prev_vision = Vision(prev_screenshot)
+            _sling = prev_vision.findSlingshotMBR()
 
-                self.ar.fullyZoomOut()
-                prev_screenshot = self.ar.doScreenShot()
-                prev_vision = Vision(prev_screenshot)
-                _sling = prev_vision.findSlingshotMBR()
+            if self.currentLevel < 10:
                 Prev_num_birds = (prev_vision.findBirdsMBR()).size()
-                if _sling != None:
-                    scale_diff = (sling.width - _sling.width) ** 2 + (sling.height - _sling.height) ** 2
-                    if scale_diff < 25:
-                        ###temporary
-                        #self.ar.shoot(int(refPoint.x), int(refPoint.y), int(releaseDistance), int(releaseAngle), 0, int(tapTime), True)
 
+                if Prev_num_birds == 0:
+                    time.sleep(4)
+                    state = self.ar.checkState()
+                    return state;
+
+            if _sling != None:
+                scale_diff = (sling.width - _sling.width) ** 2 + (sling.height - _sling.height) ** 2
+                if scale_diff < 25:
+                    ###temporary
+                    if self.test_flag:
+                        self.ar.shoot(int(refPoint.x), int(refPoint.y), int(releaseDistance), int(releaseAngle), 0, int(tapTime), True)
+                        time.sleep(0.5)
+                        state = self.ar.checkState()
+                    elif self.currentLevel > 9:
+                        self.ar.fastshoot(int(refPoint.x), int(refPoint.y),
+                                          -int(releaseDistance * cos(radians(releaseAngle / 100))),
+                                          int(releaseDistance * sin(radians(releaseAngle / 100))), 0, int(tapTime),
+                                          False)
+                        shoot_time = time.time()
+                        temp_observation = 0
+                        time.sleep(3)
+                        while time.time()-shoot_time < 15 :
+                            screenshot = self.ar.doScreenShot()
+                            state = self.ar.checkState()
+                            if state == state.WON or state == state.LOST:
+                                break
+                            vision = Vision(screenshot)
+                            temp_observation = self.FeatureExtractor(vision)
+
+                        if state == state.WON or state == state.LOST:
+                            self.final_observation = temp_observation
+                            self.Final_observation_error = False
+                            time.sleep(2.5)  # wait for score is ready
+                    else:
                         shoot_time = time.time()
                         self.ar.fastshoot(int(refPoint.x), int(refPoint.y), -int(releaseDistance*cos(radians(releaseAngle/100))),int(releaseDistance*sin(radians(releaseAngle/100))), 0, int(tapTime), False)
-
+                        time.sleep(1)  # wait for score is ready
                         self.ar.fullyZoomOut()
                         screenshot = self.ar.doScreenShot()
                         vision = Vision(screenshot)
@@ -210,7 +266,7 @@ class RLAgent:
                             Curr_num_birds = (vision.findBirdsMBR()).size()
                             Curr_num_pigs = (vision.findPigsMBR()).size()
                             #time out
-                            if time.time()-shoot_time > 20:
+                            if time.time()-shoot_time > 30:
                                 break
                             #Update final_observation only if there is no pig, and bird number is decreased.
                             if Curr_num_pigs == 0 or Curr_num_birds==0:
@@ -233,17 +289,16 @@ class RLAgent:
                                 self.Final_observation_error = True
                             while state != state.WON and state != state.LOST:
                                 state = self.ar.checkState()
-                                if time.time() - shoot_time > 20:
+                                if time.time() - shoot_time > 30:
                                     break
                             time.sleep(2.5)#wait for score is ready
 
-
-                        if state == state.PLAYING:
-                            self.firstShot = False
-                    else:
-                        print "Sclae is changed, can not execute the shot, will re-segment the image"
+                    if state == state.PLAYING:
+                        self.firstShot = False
                 else:
-                    print "no sling detected, cannot execute the shot, will re-segment the image"
+                    print "Sclae is changed, can not execute the shot, will re-segment the image"
+            else:
+                print "no sling detected, cannot execute the shot, will re-segment the image"
 
         return state
 
@@ -255,30 +310,31 @@ class RLAgent:
 
         info = self.ar.configure(ClientActionRobot.intToByteArray(self.id))
         self.solved = np.zeros(info[2])
-        self.checkMyScore()
-        self.currentLevel = self.getNextLevel()
-        print "## currentLevel %d" % self.currentLevel
-
+        #self.checkMyScore()
+        TRAIN_LEVEL_index = 0
+        if TEST_FLAG and START_WITH_TEST:
+            self.currentLevel = 1
+        else:
+            self.currentLevel = TRAIN_LEVEL[TRAIN_LEVEL_index]
 
         #ddpg
         # Randomly initialize critic,actor,target critic, target actor network  and replay buffer
         exploration_noise = OUNoise(self.num_actions, self.noise_mean, self.noise_sigma)#mean, sigma
+        exploration_noise_small = OUNoise(self.num_actions, self.noise_mean, self.noise_sigma_small)  # mean, sigma
         counter = 0
         reward_per_episode = 0
         total_reward = 0
         print "Number of States:", self.num_states
         print "Number of Actions:", self.num_actions
-        # saving reward:
-        reward_st = np.array([0])
-
-        Stage_maximum_actions = 1
 
         #Learning for Same level
         for current_episode in xrange(episodes): #1 episode is for 1stage
-
+            if counter > TRAIN_STEP:
+                self.TEST_AFTER_EVERY_EPISODE = self.TEMP_TEST_AFTER_EVERY_EPISODE
             self.ar.loadLevel(self.currentLevel)
             print "==== Starting episode no:", current_episode, "====", "\n"
             #get the input(screenshot)
+            self.ar.fullyZoomOut()
             screenshot = self.ar.doScreenShot()
             vision = Vision(screenshot)
             sling = vision.findSlingshotMBR()
@@ -290,23 +346,38 @@ class RLAgent:
                 vision = Vision(screenshot)
                 sling = vision.findSlingshotMBR()
 
+            self.steps = 0 ######IMPORTANT
             observation = self.FeatureExtractor(vision)
 
             prevscore = 0
             reward_per_episode = 0
-            steps = 0
             self.final_observation = 0
             self.Final_observation_error = True
 
             # One episode
             while True:
+                if self.test_flag:
+                    print "\n###############################################################"
+                    print "############                 TEST                  ############"
+                    print "###############################################################\n"
+                else:
+                    print "\n###############################################################"
+                    print "############                 TRAIN                 ############"
+                    print "###############################################################\n"
+                print "## currentLevel %d\n" % self.currentLevel
+
                 x = observation
                 action = self.ddpg.evaluate_actor(np.reshape(x, [1, self.num_states]))
                 print "## Action From Network!!"
                 print action
                 action = action[0]
                 noise = exploration_noise.noise()
-                action = action + noise  # Select action according to current policy and exploration noise
+                for temp_level in SMALL_NOISE_LEVEL:
+                    if self.currentLevel == temp_level:
+                        noise = exploration_noise_small.noise()
+                        break
+                if self.test_flag == False:
+                    action = action + noise  # Select action according to current policy and exploration noise
                 print action
                 action[0] = action[0] if action[0] > self.action_space_low[0] else 2*self.action_space_low[0]-action[0]
                 action[0] = action[0] if action[0] < self.action_space_high[0] else self.action_space_high[0]
@@ -314,7 +385,7 @@ class RLAgent:
                 action[1] = action[1] if action[1] < self.action_space_high[1] else self.action_space_high[1]
                 action[2] = action[2] if action[2] > self.action_space_low[2] else 2*self.action_space_low[2]-action[2]
                 action[2] = action[2] if action[2] < self.action_space_high[2] else self.action_space_high[2]
-                print "Action at step", steps, " :", action, "\n"
+                print "Action at step", self.steps, " :", action, "\n"
 
                 screenshot = self.ar.doScreenShot()
                 vision = Vision(screenshot)
@@ -334,14 +405,111 @@ class RLAgent:
                     else:
                         reward = -100.00
 
-                    #Move to next level in every 5 steps
-                    if current_episode%5 == 4:
-                        if self.currentLevel == 5:
-                            self.currentLevel = 1
+                    # TEST Result write
+                    if self.test_flag and state == state.WON:
+                        self.test_totalscore += score
+                        f = open("Test_Result.txt", 'a')
+                        data = "%d Win %d\n" % (self.currentLevel, score)
+                        f.write(data)
+                        f.close()
+
+
+                    #Propagate WIN/LOSE reward to all steps
+                    if self.steps != 0:
+                        temp_reward = reward * 0.5
+                        temp = self.temp_replay_memory.pop()
+                        temp_x = temp[0]
+                        temp_x = np.reshape(temp_x, [self.num_states])
+                        temp_observation = temp[1]
+                        temp_observation = np.reshape(temp_observation, [self.num_states])
+                        temp_action = temp[2]
+                        temp_action = np.reshape(temp_action, [self.num_actions])
+                        while True:
+                            try:
+                                if self.test_flag == False:
+                                    self.ddpg.add_experience(temp_x, temp_observation, temp_action, temp[3] + temp_reward, temp[4])
+                                temp = self.temp_replay_memory.pop()
+                                temp_x = temp[0]
+                                temp_x = np.reshape(temp_x, [self.num_states])
+                                temp_observation = temp[1]
+                                temp_observation = np.reshape(temp_observation, [self.num_states])
+                                temp_action = temp[2]
+                                temp_action = np.reshape(temp_action, [self.num_actions])
+                                temp_reward = temp_reward * 0.5
+                            except:
+                                break
+
+
+                    # Move to next level at the end of episode
+                    if self.test_flag:  # TEST
+                        # In TEST, All win until LEVEL 'ALL_WIN_LEVEL' Then stop game
+                        if self.currentLevel == ALL_WIN_LEVEL:
+                            f = open("Test_Result.txt", 'a')
+                            data = "All Win. Stop Game\nTotal Score : %d\n" % (self.test_totalscore)
+                            f.write(data)
+                            f.close()
+                            self.ddpg.save_parameters()  # save parameters
+                            return -1  # END GAME
+                        self.currentLevel = self.getNextLevel()
+                    else:  # Training
+                        if TRAIN_LEVEL_index == len(TRAIN_LEVEL) - 1 or self.TEST_START_FLAG or self.TEST_AFTER_EVERY_EPISODE:  # Last Level
+                            if TEST_FLAG:  # TEST START!
+                                if self.TEST_START_FLAG:
+                                    self.currentLevel = self.TEST_START_LEVEL
+                                else:
+                                    self.currentLevel = 1
+                                self.TEST_START_FLAG = False
+                                self.ddpg.save_parameters()  # save parameters
+                                self.ddpg.close_sessions()
+                                self.ddpg.restore_parameters()  # restore parameters
+                                self.test_flag = True
+                                self.all_win_flag = True
+                                self.test_totalscore = 0.0
+                                f = open("Test_Result.txt", 'a')
+                                data = "Test at episode: %d \n" % current_episode
+                                f.write(data)
+                                f.close()
+                            else:  # NO TEST, START FROM FIRST TRAINING LEVEL
+                                self.currentLevel = TRAIN_LEVEL[0]
                         else:
-                            self.currentLevel = self.getNextLevel()
-                    else:
-                        self.currentLevel = self.currentLevel # self.currentLevel = self.getNextLevel()
+                            TRAIN_LEVEL_index += 1
+                            self.currentLevel = TRAIN_LEVEL[TRAIN_LEVEL_index]
+
+
+
+                    # TEST, When lose stop test
+                    if self.test_flag and (self.currentLevel != 1 and self.currentLevel != self.TEST_START_LEVEL):
+
+                        if state == state.LOST or self.TRAIN_START_FLAG:
+                            f = open("Test_Result.txt", 'a')
+                            if self.TEST_START_FLAG:
+                                f.write("Stop By User. ")
+                            data = "Total Score : %d\n" % (self.test_totalscore)
+                            f.write(data)
+
+                            f.close()
+                            if TARGET_SCORE < self.test_totalscore:
+                                f = open("Test_Result.txt", 'a')
+                                data = "Exceed Target Score. Stop Game\nTotal Score : %d\n" % (self.test_totalscore)
+                                f.write(data)
+                                f.close()
+                                self.ddpg.save_parameters()  # save parameters
+                                return -1  # END GAME
+
+                            self.test_flag = False
+
+                            if self.TEST_AFTER_EVERY_EPISODE:
+                                TRAIN_LEVEL_index += 1
+                                if TRAIN_LEVEL_index == len(TRAIN_LEVEL):
+                                    TRAIN_LEVEL_index = 0
+                            else:
+                                TRAIN_LEVEL_index = 0
+                            if self.TEST_START_FLAG or self.TEST_AFTER_EVERY_EPISODE: ###TEMP
+                                self.currentLevel = self.TRAIN_START_LEVEL
+                            else:
+                                self.currentLevel = TRAIN_LEVEL[TRAIN_LEVEL_index]  # TRAINING START!
+                            self.TRAIN_START_FLAG = False
+
 
                     self.firstShot = True
                     done = True
@@ -350,22 +518,25 @@ class RLAgent:
                     print "######### REWARD" , reward
                     if self.Final_observation_error == False:
                         print "### add experience", action, reward, done
-                        self.ddpg.add_experience(x, self.final_observation, action, reward, done)
+                        if self.test_flag == False:
+                            self.ddpg.add_experience(x, observation, action, reward, done)
+                    elif self.test_flag:
+                        print ""
                     else :
                         print "### Not add experience by Capture ERROR"
                     # train critic and actor network
                     if counter > TRAIN_STEP:
-                        self.ddpg.train()
+                        if self.test_flag == False:
+                            self.ddpg.train()
                     reward_per_episode += reward
-                    counter += 1
-                    steps += 1
+                    if self.test_flag == False:
+                        counter += 1
+                    self.steps += 1
 
                     # check if episode ends:
-                    print 'EPISODE: ', current_episode, ' Steps: ', steps, ' Total Reward: ', reward_per_episode
-                    #print "Printing reward to file"
+                    print 'EPISODE: ', current_episode, ' Steps: ', self.steps, ' Total Reward: ', reward_per_episode
                     exploration_noise.reset()  # reinitializing random noise for action exploration
-                    #reward_st = np.append(reward_st, reward_per_episode)
-                    #np.savetxt('episode_reward.txt', reward_st, newline="\n")
+                    exploration_noise_small.reset()
                     print '\n\n'
 
                     #RL_Bird:reward should be updated to all actions in the stage.
@@ -374,6 +545,7 @@ class RLAgent:
                 elif state == state.PLAYING:
                     # PLAING in a episode
                     # get the input(screenshot)
+                    self.ar.fullyZoomOut()
                     screenshot = self.ar.doScreenShot()
                     vision = Vision(screenshot)
                     sling = vision.findSlingshotMBR()
@@ -385,6 +557,8 @@ class RLAgent:
                         vision = Vision(screenshot)
                         sling = vision.findSlingshotMBR()
 
+
+                    self.steps += 1
                     # get s_t+1
                     vision = Vision(screenshot)
                     print "#Next state is captured"
@@ -395,27 +569,27 @@ class RLAgent:
                     reward = (score - prevscore) / 1000.0
                     if reward == 0.0:
                         reward = -100
-                    #?????
-                    #if (Stage_maximum_actions - 1 == steps):
-                    #    reward = -10
+
 
 
                     print "#### instant reward", reward
                     prevscore = score
                     done = False
-                    self.ddpg.add_experience(x, observation, action, reward, done)
-                    print "### add experience", action, reward, done
+
+                    self.temp_replay_memory.append((x, observation, action, reward, done))
+                    if self.test_flag == False:
+                        print "### add experience", action, reward, done
+
                     # train critic and actor network
                     if counter > TRAIN_STEP:
-                        self.ddpg.train()
+                        if self.test_flag == False:
+                            self.ddpg.train()
                     reward_per_episode += reward
-                    counter += 1
-                    steps += 1
+                    if self.test_flag == False:
+                        counter += 1
                     exploration_noise.reset()  # reinitializing random noise for action exploration
-                    #?????
-                    #if (Stage_maximum_actions == steps):
-                    #    print "### Count is over. restart game"
-                    #    break;
+                    exploration_noise_small.reset()
+
 
                 elif state == state.LEVEL_SELECTION:
                     print "unexpected level selection page, go to the last current level: %d" % self.currentLevel
@@ -467,15 +641,46 @@ class RLAgent:
                 else: # pig exist
                     observation[(int)((center_y-440) / 20) * 20 + (int)((center_x-240) / 20)] = 5
 
-        number_birds = (vision.findBirdsMBR()).size()
+        #number_birds = (vision.findBirdsMBR()).size()
         #print "number of remaining birds : ", number_birds
-        observation[400]=number_birds
+        #observation[400]=number_birds
+        observation[400]=self.total_numbirds[self.currentLevel-1] - self.steps
 
-        current_level = self.getNextLevel()-1
-        #print "Current level : ", current_level
-        observation[401]=current_level
+        observation[401]=self.currentLevel
+        # print "Current level : ", self.currentLevel
 
         return observation
+
+    def CLI(self):
+        while 1:
+            line = sys.stdin.readline()
+            try:
+                if line.split(' ')[0] == "set" and line.split(' ')[1] == "test":
+                    setlevel = int(line.split(' ')[2])
+                    print "Set test start level to %d" %(setlevel)
+                    self.TEST_START_LEVEL = setlevel
+
+                if line.split(' ')[0] == "set" and line.split(' ')[1] == "train":
+                    setlevel = int(line.split(' ')[2])
+                    print "Set train start level to %d" %(TRAIN_LEVEL[setlevel])
+                    self.TRAIN_START_LEVEL = TRAIN_LEVEL[setlevel]
+
+                if line == "test\n":
+                    self.TEST_START_FLAG = True
+                    print "Test start flag is set"
+                if line == "train\n":
+                    self.TEST_START_FLAG = False
+                    self.TRAIN_START_FLAG = True
+                    print "Train start flag is set"
+                if line == "TEST_EVERY\n":
+                    print "Test start after training one episode"
+                    self.TEMP_TEST_AFTER_EVERY_EPISODE = True
+                if line == "TEST_CYCLE\n":
+                    print "Test start after training cycle"
+                    self.TEMP_TEST_AFTER_EVERY_EPISODE = False
+            except:
+                print "ERROR!"
+
 
 
 if __name__ == '__main__':

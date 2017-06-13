@@ -1,0 +1,2 @@
+model_checkpoint_path: "critic_bn_model.ckpt"
+all_model_checkpoint_paths: "critic_bn_model.ckpt"

@@ -14,7 +14,7 @@ from collections import deque
 from tensorflow_grad_inverter import grad_inverter
 from tempfile import TemporaryFile
 
-REPLAY_MEMORY_SIZE = 100
+REPLAY_MEMORY_SIZE = 200
 GAMMA = 0.99
 is_grad_inverter = True
 
@@ -34,7 +34,6 @@ class DDPG:
         if is_batch_norm:
             self.critic_net = CriticNet_bn(self.num_states, self.num_actions, self.BATCH_SIZE)
             self.actor_net = ActorNet_bn(self.num_states, self.num_actions, self.BATCH_SIZE)
-
         else:
             self.critic_net = CriticNet(self.num_states, self.num_actions, self.BATCH_SIZE)
             self.actor_net = ActorNet(self.num_states, self.num_actions, self.BATCH_SIZE)
@@ -51,7 +50,8 @@ class DDPG:
         action_bounds = [action_max, action_min]
         self.grad_inv = grad_inverter(action_bounds)
 
-        self.outfile = TemporaryFile(mode="a+b")
+        #self.outfile = TemporaryFile(mode="a+b")
+        self.episode = 0
 
     def evaluate_actor(self, state_t):
         return self.actor_net.evaluate_actor(state_t)
@@ -124,9 +124,24 @@ class DDPG:
         self.critic_net.update_target_critic()
         self.actor_net.update_target_actor()
 
-        #save Parameters
-        self.actor_net.save_actor()
-        self.critic_net.save_critic()
         print "###### finish to train"
 
+
+        #save Parameters
+        self.episode += 1
+        if self.episode % 20 == 0:
+            self.actor_net.save_actor()
+            self.critic_net.save_critic()
+
+    def save_parameters(self):
+        self.actor_net.save_actor()
+        self.critic_net.save_critic()
+
+    def restore_parameters(self):
+        self.actor_net.restore_actor()
+        self.critic_net.restore_critic()
+
+    def close_sessions(self):
+        self.actor_net.close_actor()
+        self.critic_net.close_critic()
 

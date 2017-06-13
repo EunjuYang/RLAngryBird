@@ -9,7 +9,7 @@ import math
 from batch_norm import *
 import numpy as np
 
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 TAU = 0.001
 N_HIDDEN_1 = 400
 N_HIDDEN_2 = 300
@@ -19,15 +19,16 @@ class ActorNet_bn:
     """ Actor Network Model with Batch Normalization of DDPG Algorithm """
 
     def __init__(self, num_states, num_actions, BATCH_SIZE):
-        f = open("train_loss_bn.txt", 'a')
+        f = open("Test_Result.txt", 'a')
         data = "Actor Learning rate : %f\n"%LEARNING_RATE
         f.write(data)
         f.close()
 
         tf.reset_default_graph()
         self.g = tf.Graph()
+        #self.sess = tf.InteractiveSession(graph=self.g)
+        self.sess = tf.Session(graph=self.g)
         with self.g.as_default():
-            self.sess = tf.InteractiveSession()
             self.BATCH_SIZE = BATCH_SIZE
 
             # actor network model parameters:
@@ -86,21 +87,25 @@ class ActorNet_bn:
 
             self.optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE, epsilon=1e-08).apply_gradients(
                 zip(self.parameters_gradients, self.actor_parameters))
+
+            self.saver = tf.train.Saver()
+
             # initialize all tensor variable parameters:
             self.sess.run(tf.initialize_all_variables())
-            self.saver = tf.train.Saver()
+
+            self.saver.restore(self.sess, MODEL_PATH)
 
             # To make sure actor and target have same intial parmameters copy the parameters:
             # copy target parameters
-            self.sess.run([
+            """self.sess.run([
                 self.t_W1_a.assign(self.W1_a),
                 self.t_B1_a.assign(self.B1_a),
                 self.t_W2_a.assign(self.W2_a),
                 self.t_B2_a.assign(self.B2_a),
                 self.t_W3_a.assign(self.W3_a),
-                self.t_B3_a.assign(self.B3_a)])
-            self.saver.restore(self.sess, MODEL_PATH)
-            print "#Actor model parameter Load Finish"
+                self.t_B3_a.assign(self.B3_a)])"""
+
+        print "#Actor model parameter Load Finish"
 
     def evaluate_actor(self, state_t):
         return self.sess.run(self.actor_model, feed_dict={self.actor_state_in: state_t, self.is_training: False})
@@ -130,4 +135,18 @@ class ActorNet_bn:
         ])
 
     def save_actor(self, path=MODEL_PATH):
-        save_path = self.saver.save(self.sess, path)
+        print "###### save Actor Parameters"
+        self.saver.save(self.sess, path)
+
+    def restore_actor(self):
+        print "###### restore Actor Parameters"
+        self.sess = tf.Session(graph=self.g)
+        with self.g.as_default():
+            self.saver = tf.train.Saver()
+            self.sess.run(tf.initialize_all_variables())
+            self.saver.restore(self.sess, MODEL_PATH)
+
+
+
+    def close_actor(self):
+        self.sess.close()

@@ -84,4 +84,9 @@ class ActorNet:
 				self.t_B3_a.assign(TAU*self.B3_a+(1-TAU)*self.t_B3_a)])
 
     def save_actor(self, path=MODEL_PATH):
+        print "###### save Actor Parameters"
         save_path = self.saver.save(self.sess, path)
+
+    def restore_actor(self):
+        print "###### restore Actor Parameters"
+        self.saver.restore(self.sess, MODEL_PATH)

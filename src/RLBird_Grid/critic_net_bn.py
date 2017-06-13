@@ -10,7 +10,7 @@ import math
 from batch_norm import *
 import numpy as np
 
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 TAU = 0.001
 N_HIDDEN_1 = 400
 N_HIDDEN_2 = 300
@@ -20,14 +20,15 @@ class CriticNet_bn:
     """ Critic Q value model with batch normalization of the DDPG algorithm """
 
     def __init__(self, num_states, num_actions, BATCH_SIZE):
-        f = open("train_loss_bn.txt", 'a')
+        f = open("Test_Result.txt", 'a')
         data = "Critic Learning rate : %f "%LEARNING_RATE
         f.write(data)
         f.close()
         tf.reset_default_graph()
         self.g = tf.Graph()
+        self.sess = tf.Session(graph=self.g)
+        #self.sess = tf.InteractiveSession(graph=self.g)
         with self.g.as_default():
-            self.sess = tf.InteractiveSession()
             self.BATCH_SIZE = BATCH_SIZE
 
             # Critic Q Network:
@@ -100,13 +101,17 @@ class CriticNet_bn:
             # from simple actor net:
             self.check_fl = self.action_gradients
 
+            self.saver = tf.train.Saver()  # save all the variables initialized until now
+
             # initialize all tensor variable parameters:
             self.sess.run(tf.initialize_all_variables())
-            self.saver = tf.train.Saver()
+
+            self.saver.restore(self.sess, MODEL_PATH)
+            print "#Critic model parameter Load Finish"
 
             # To initialize critic and target with the same values:
             # copy target parametersf
-            self.sess.run([
+            """self.sess.run([
                 self.t_W1_c.assign(self.W1_c),
                 self.t_B1_c.assign(self.B1_c),
                 self.t_W2_c.assign(self.W2_c),
@@ -114,9 +119,8 @@ class CriticNet_bn:
                 self.t_B2_c.assign(self.B2_c),
                 self.t_W3_c.assign(self.W3_c),
                 self.t_B3_c.assign(self.B3_c)
-            ])
-            self.saver.restore(self.sess, MODEL_PATH)
-            print "#Critic model parameter Load Finish"
+            ])"""
+
 
     def train_critic(self, state_t_batch, action_batch, y_i_batch):
         #print "Critic net Cost :" + str(train_loss)
@@ -159,4 +163,19 @@ class CriticNet_bn:
         ])
 
     def save_critic(self, path=MODEL_PATH):
-        save_path = self.saver.save(self.sess, path)
+        print "###### save Critic Parameters"
+        self.saver.save(self.sess, path)
+
+    def restore_critic(self):
+        print "###### restore Critic Parameters"
+        self.sess = tf.Session(graph=self.g)
+        #self.sess = tf.InteractiveSession(graph = self.g)
+        with self.g.as_default():
+            self.saver = tf.train.Saver()
+            self.sess.run(tf.initialize_all_variables())
+            self.saver.restore(self.sess, MODEL_PATH)
+
+
+
+    def close_critic(self):
+        self.sess.close()
